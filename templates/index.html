@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>국내주식 자동매매</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .log-area { height: 400px; overflow-y: auto; background: #222; color: #0f0; padding: 15px; font-family: monospace; border-radius: 8px; line-height: 1.6; }
+        .card { border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 12px; }
+        .nav-link.active { font-weight: bold; border-bottom: 2px solid white; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand navbar-dark bg-dark mb-4">
+        <div class="container">
+            <div class="navbar-nav">
+                <a class="nav-link active" href="/">🇰🇷 국내주식</a>
+                <a class="nav-link text-warning" href="/overseas">🇺🇸 해외주식</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="fw-bold mb-3">🤖 봇 제어</h5>
+                        <div class="text-center mb-3">
+                            <span id="status-text" class="badge bg-secondary fs-6">정지됨</span>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">전략 선택</label>
+                            <select id="strategy-select" class="form-select">
+                                <option value="dual_momentum">6개월 클래식 듀얼 모멘텀</option>
+                                <option value="moving_average">20일 이평선 추세추종</option>
+                            </select>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button onclick="startBot()" class="btn btn-primary">▶ 매매 시작</button>
+                            <button onclick="stopBot()" class="btn btn-danger">⏹ 매매 정지</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="fw-bold mb-3">📊 계좌 상태</h5>
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item d-flex justify-content-between">예수금 <span id="balance-val">0원</span></li>
+                            <li class="list-group-item d-flex justify-content-between">평가액 <span id="evlu-val" class="text-primary">0원</span></li>
+                            <li class="list-group-item d-flex justify-content-between fw-bold">총자산 <span id="total-val" class="text-success">0원</span></li>
+                            <li class="list-group-item d-flex justify-content-between">목표 <span id="target-val" class="text-danger">-</span></li>
+                            <li class="list-group-item d-flex justify-content-between text-muted small">갱신 <span id="update-val">-</span></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-white fw-bold">실시간 로그</div>
+                    <div class="card-body p-0">
+                        <div id="logs" class="log-area">로그 대기 중...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateStatus() {
+            fetch('/status').then(r => r.json()).then(data => {
+                const fmt = (v) => new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(v);
+                document.getElementById('balance-val').innerText = fmt(data.balance);
+                document.getElementById('evlu-val').innerText = fmt(data.evlu_amt);
+                document.getElementById('total-val').innerText = fmt(data.total_asset);
+                document.getElementById('target-val').innerText = data.target;
+                document.getElementById('update-val').innerText = data.last_update;
+                
+                const badge = document.getElementById('status-text');
+                badge.innerText = data.is_running ? "실행 중" : "정지됨";
+                badge.className = data.is_running ? "badge bg-success fs-6" : "badge bg-secondary fs-6";
+                
+                const logDiv = document.getElementById('logs');
+                if (data.log.length > 0) {
+                    logDiv.innerHTML = data.log.map(line => `<div>${line}</div>`).join('');
+                }
+            });
+        }
+
+        function startBot() {
+            const strategy = document.getElementById('strategy-select').value;
+            fetch('/start', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({strategy: strategy})
+            });
+        }
+
+        function stopBot() { fetch('/stop', {method:'POST'}); }
+
+        setInterval(updateStatus, 1500);
+    </script>
+</body>
+</html>

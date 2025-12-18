@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>해외주식 자동매매</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #1a1a1a; color: #e0e0e0; font-family: 'Malgun Gothic', sans-serif; }
+        /* 로그 영역 스타일: 검은 배경에 녹색 글씨 */
+        .log-area { 
+            height: 520px; 
+            overflow-y: auto; 
+            background: #000; 
+            color: #00ff00; 
+            padding: 15px; 
+            font-family: 'Consolas', monospace; 
+            font-size: 14px; 
+            border: 1px solid #444; 
+            border-radius: 8px;
+            line-height: 1.6;
+        }
+        .card { background-color: #2d2d2d; border: none; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        .list-group-item { background-color: transparent; border-color: #444; color: #e0e0e0; padding: 12px 15px; }
+        .nav-link.active { font-weight: bold; border-bottom: 2px solid #ffc107; }
+        .text-warning { color: #ffc107 !important; }
+    </style>
+</head>
+<body>
+    <!-- 상단 네비게이션 바 -->
+    <nav class="navbar navbar-expand navbar-dark bg-dark mb-4 shadow">
+        <div class="container">
+            <div class="navbar-nav">
+                <a class="nav-link" href="/">🇰🇷 국내주식</a>
+                <a class="nav-link active text-warning fw-bold" href="/overseas">🇺🇸 해외주식</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h2 class="mb-4 text-center text-warning fw-bold">🇺🇸 해외주식 자동매매 시스템</h2>
+        
+        <div class="row g-4">
+            <!-- [왼쪽] 제어 및 계좌 정보 (4개 컬럼) -->
+            <div class="col-md-4">
+                <!-- 봇 제어 카드 -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title text-warning fw-bold mb-3">🤖 해외 봇 제어</h5>
+                        <div class="text-center mb-3">
+                            <span id="status-text" class="badge bg-secondary fs-6 p-2">서버 연결 중...</span>
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button onclick="startOverseasBot()" class="btn btn-warning fw-bold">▶ 해외매매 시작</button>
+                            <button onclick="stopOverseasBot()" class="btn btn-outline-danger">⏹ 매매 정지</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 계좌 상태 카드 -->
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title text-info fw-bold mb-3">📊 해외계좌 상태 (USD)</h5>
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item d-flex justify-content-between">
+                                예수금 <span id="deposit-val" class="fw-bold">$0.00</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between">
+                                주식 평가액 <span id="evlu-val" class="text-info fw-bold">$0.00</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between border-top border-secondary mt-2 pt-3">
+                                <span class="fw-bold">총 자산</span> 
+                                <span id="total-val" class="text-warning fw-bold fs-5">$0.00</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between">
+                                현재 목표 <span id="target-val" class="text-danger fw-bold">-</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between text-muted small">
+                                마지막 갱신 <span id="update-val">-</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- [오른쪽] 실시간 로그창 (8개 컬럼) -->
+            <div class="col-md-8">
+                <div class="card h-100">
+                    <div class="card-header bg-dark text-warning fw-bold border-bottom border-secondary py-3">
+                        📜 실시간 해외 거래 로그
+                    </div>
+                    <div class="card-body p-3">
+                        <div id="logs" class="log-area">해외 서버 로그 대기 중...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 상태 업데이트 함수
+        function updateOverseasStatus() {
+            fetch('/overseas_status').then(r => r.json()).then(data => {
+                // 달러 포맷팅
+                const fmt = (v) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v);
+                
+                document.getElementById('deposit-val').innerText = fmt(data.deposit.replace(/,/g, ''));
+                document.getElementById('evlu-val').innerText = fmt(data.evlu_amt.replace(/,/g, ''));
+                document.getElementById('total-val').innerText = fmt(data.total_asset.replace(/,/g, ''));
+                document.getElementById('target-val').innerText = data.target;
+                document.getElementById('update-val').innerText = data.last_update;
+                
+                // 상태 배지 업데이트
+                const badge = document.getElementById('status-text');
+                badge.innerText = data.is_running ? "해외 봇 가동 중" : "정지됨";
+                badge.className = data.is_running ? "badge bg-success fs-6 p-2" : "badge bg-secondary fs-6 p-2";
+                
+                // 로그 출력 (한 줄씩 div로 감싸서)
+                const logDiv = document.getElementById('logs');
+                if (data.log && data.log.length > 0) {
+                    logDiv.innerHTML = data.log.map(line => `<div>${line}</div>`).join('');
+                }
+            }).catch(err => console.error("해외 상태 업데이트 에러:", err));
+        }
+        
+        // 봇 시작/정지 명령
+        function startOverseasBot() { fetch('/overseas_start', {method:'POST'}); }
+        function stopOverseasBot() { fetch('/overseas_stop', {method:'POST'}); }
+        
+        // 2초마다 갱신
+        setInterval(updateOverseasStatus, 2000);
+        // 페이지 로드 시 즉시 한 번 실행
+        updateOverseasStatus();
+    </script>
+</body>
+</html>
